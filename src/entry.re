@@ -62,7 +62,10 @@ type command =
   | Help
   | Get
   | Set(string)
-  | EightBall;
+  | EightBall
+  | Giphy(string)
+  | Poll
+  | PollRange(int, int);
 
 let parseMatch (commandName, args) =
   switch (commandName) {
@@ -72,6 +75,27 @@ let parseMatch (commandName, args) =
   | "get" => Some(Get)
   | "set" => Some(Set(args))
   | "8ball" => Some(EightBall)
+  | "giphy" => Some(Giphy(args))
+  | "poll" =>
+    args
+    |> Js.String.match_(Js.Re.fromString("^(\\d+)(?:-(\\d+))?\\s+"))
+    |> (
+      (match_) =>
+        switch (match_) {
+        | None => Some(Poll)
+        | Some(match_) =>
+          if (match_[2] |> Utils.truthy) {
+            Some(
+              PollRange(
+                Utils.parseInt(1, match_[1]),
+                Utils.parseInt(10, match_[2])
+              )
+            )
+          } else {
+            Some(PollRange(1, Utils.parseInt(10, match_[1])))
+          }
+        }
+    )
   | _ => None
   };
 
@@ -218,6 +242,52 @@ let handleMessage (msg) = {
            );
            let _ = msg |> Message.reply("note = " ++ note);
            ()
+         | Giphy(search) =>
+           let client = Giphy.makeClient();
+           let _ =
+             client
+             |> Giphy.random(search)
+             |> Js.Promise.then_((url) => msg |> Message.reply(url));
+           ()
+         | Poll =>
+           let _ =
+             msg
+             |> Message.reactWithString({js|👍|js})
+             |> Js.Promise.then_(
+                  (_) => msg |> Message.reactWithString({js|👎|js})
+                )
+             |> Js.Promise.then_(
+                  (_) => msg |> Message.reactWithString({js|🤷|js})
+                );
+           ()
+         | PollRange(start, finish) =>
+           let isValidRange (x) = x >= 1 && x <= 10;
+           let getEmojiStringForInt (x) =
+             switch (x) {
+             | 1 => {js|1⃣|js}
+             | 2 => {js|2⃣|js}
+             | 3 => {js|3⃣|js}
+             | 4 => {js|4⃣|js}
+             | 5 => {js|5⃣|js}
+             | 6 => {js|6⃣|js}
+             | 7 => {js|7⃣|js}
+             | 8 => {js|8⃣|js}
+             | 9 => {js|9⃣|js}
+             | 10 => {js|🔟|js}
+             | _ => failwith("Unexpected value")
+             };
+           if (isValidRange(start) && isValidRange(finish) && start <= finish) {
+             let rec run (i) =
+               if (i <= finish) {
+                 msg
+                 |> Message.reactWithString(getEmojiStringForInt(i))
+                 |> Js.Promise.then_((_) => run(i + 1))
+               } else {
+                 Js.Promise.resolve()
+               };
+             let _ = run(start);
+             ()
+           }
          }
      )
 };
@@ -237,4 +307,5 @@ client
 
 client |> Client.onMessage(handleMessage);
 
-client |> Client.login(Node.Fs.readFileAsUtf8Sync("./token.txt") |> Js.String.trim);
+client
+|> Client.login(Node.Fs.readFileAsUtf8Sync("./token.txt") |> Js.String.trim);

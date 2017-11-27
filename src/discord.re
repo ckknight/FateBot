@@ -632,11 +632,11 @@ module Message = {
     "";
   [@bs.send.pipe : t]
   external reactWithString : string => Js.Promise.t(messageReaction) =
-    "";
+    "react";
   [@bs.send.pipe : t]
   external reactWithReactionEmoji :
     reactionEmoji => Js.Promise.t(messageReaction) =
-    "";
+    "react";
   [@bs.send] external unpin : t => Js.Promise.t(t) = "";
   /* note: this return type is a lie, it could be message | array(message) */
   [@bs.send.pipe : t]
