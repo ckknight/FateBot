@@ -16,7 +16,7 @@ type presenceStatus =
   | Invisible
   | DND;
 
-let encodePresenceStatus (x) =
+let encodePresenceStatus = x =>
   switch (x) {
   | Online => "online"
   | Idle => "idle"
@@ -75,13 +75,13 @@ module Channel = {
   [@bs.get] external channelType : t => string = "type";
   [@bs.send] external delete : t => Js.Promise.t(t) = "";
   external asDMChannel : t => dm_channel_t = "%identity";
-  let asDMChannel (channel) =
+  let asDMChannel = channel =>
     switch (channelType(channel)) {
     | "dm" => Some(asDMChannel(channel))
     | _ => None
     };
   external asTextChannel : t => text_channel_t = "%identity";
-  let asTextChannel (channel) =
+  let asTextChannel = channel =>
     switch (channelType(channel)) {
     | "text" => Some(asTextChannel(channel))
     | _ => None
@@ -147,7 +147,7 @@ module User = {
   [@bs.send] external equals : (t, t) => bool = "";
   /* fetchProfile(): Promise<UserProfile>, */
   [@bs.send] external removeFriend : t => Js.Promise.t(t) = "";
-  [@bs.send.pipe : t] external setNote : string => Js.Promise.t(t) = "";
+  [@bs.send.pipe: t] external setNote : string => Js.Promise.t(t) = "";
   /* typingDurationIn(channel: ChannelResolvable): number, */
   /* typingIn(channel: ChannelResolvable): boolean, */
   /* typingSinceIn(channel: ChannelResolvable): Date, */
@@ -196,8 +196,8 @@ module Message = {
      ): ReactionCollector, */
   /* delete(timeout?: number): Promise<Message>, */
   [@bs.send] external delete : t => Js.Promise.t(t) = "";
-  [@bs.send.pipe : t] external deleteWithTimeout : float => Js.Promise.t(t) =
-    "delete";
+  [@bs.send.pipe: t]
+  external deleteWithTimeout : float => Js.Promise.t(t) = "delete";
   /* edit(
        content: StringResolvable,
        options?: MessageEditOptions,
@@ -206,15 +206,15 @@ module Message = {
   /* equals(message: Message, rawData: Object): boolean, */
   /* fetchWebhook(): Promise<Webhook>, */
   /* isMemberMentioned(member: GuildMember | User): boolean, */
-  [@bs.send.pipe : t] external isMemberMentioned : User.t => Js.Promise.t(t) =
-    "";
+  [@bs.send.pipe: t]
+  external isMemberMentioned : User.t => Js.Promise.t(t) = "";
   /* isMentioned(data: GuildChannel | User | Role | Snowflake): boolean, */
-  [@bs.send.pipe : t] external isUserMentioned : User.t => Js.Promise.t(t) =
-    "isMentioned";
+  [@bs.send.pipe: t]
+  external isUserMentioned : User.t => Js.Promise.t(t) = "isMentioned";
   /* [@bs.send] external isChannelMentioned : (t, Channel.t) => Js.Promise.t(bool) = "isMentioned"; */
   /* [@bs.send] external isRoleMentioned : (t, Role.t) => Js.Promise.t(bool) = "isMentioned"; */
-  [@bs.send.pipe : t] external isMentioned : snowflake => Js.Promise.t(bool) =
-    "";
+  [@bs.send.pipe: t]
+  external isMentioned : snowflake => Js.Promise.t(bool) = "";
   [@bs.send] external pin : t => Js.Promise.t(t) = "";
   /* react(emoji: string | Emoji | ReactionEmoji): Promise<MessageReaction>, */
   /* [@bs.send.pipe : t] external react : string => Js.promise.t(MessageReaction.t) = "" */
@@ -225,56 +225,58 @@ module Message = {
        options?: MessageOptions,
      ): Promise<Message | Message[]>,
      reply(options?: MessageOptions): Promise<Message | Message[]>, */
-  type messageOptions = Js.t({. split: Js.boolean});
-  [@bs.send.pipe : t]
-  external reply : (string, messageOptions) => Js.Promise.t(t) =
-    "";
-  let reply (:split=false, content: string, message: t) =
-    reply(content, {"split": split |> Js.Boolean.to_js_boolean}, message);
-  [@bs.send.pipe : t]
-  external replyMultiline : (array(string), messageOptions) => Js.Promise.t(t) =
+  type messageOptions = {. "split": bool};
+  [@bs.send.pipe: t]
+  external reply : (string, messageOptions) => Js.Promise.t(t) = "";
+  let reply = (~split=false, content: string, message: t) =>
+    reply(content, {"split": split}, message);
+  [@bs.send.pipe: t]
+  external replyMultiline :
+    (array(string), messageOptions) => Js.Promise.t(t) =
     "reply";
-  let replyMultiline (:split=true, content: list(string), message: t) =
-    replyMultiline(
-      content |> Array.of_list,
-      {"split": split |> Js.Boolean.to_js_boolean},
-      message
-    );
+  let replyMultiline = (~split=true, content: list(string), message: t) =>
+    replyMultiline(content |> Array.of_list, {"split": split}, message);
   [@bs.send] external unpin : t => Js.Promise.t(t) = "";
 };
 
 module ClientUser = {
   type t;
-  [@bs.send.pipe : t]
+  [@bs.send.pipe: t]
   external setPresence :
-    Js.t(
-      {
+    {
+      ..
+      "status": string, /* online, idle, invisible, dnd */
+      "afk": bool,
+      "game": {
         ..
-        status: string, /* online, idle, invisible, dnd */
-        afk: Js.boolean,
-        game: Js.t({.. name: string, url: string})
-      }
-    ) =>
+        "name": string,
+        "url": string,
+      },
+    } =>
     Js.Promise.t(t) =
     "";
-  let setPresence (:status=Online, :afk=false, :game="", :gameUrl="", user: t) =
+  let setPresence =
+      (~status=Online, ~afk=false, ~game="", ~gameUrl="", user: t) =>
     setPresence(
       {
         "status": status |> encodePresenceStatus,
-        "afk": afk |> Js.Boolean.to_js_boolean,
-        "game": {"name": game, "url": gameUrl}
+        "afk": afk,
+        "game": {
+          "name": game,
+          "url": gameUrl,
+        },
       },
-      user
+      user,
     );
 };
 
 module Client = {
   type t = client_t;
-  [@bs.module "discord.js"] [@bs.new] external createClient : unit => t =
-    "Client";
+  [@bs.module "discord.js"] [@bs.new]
+  external createClient : unit => t = "Client";
   [@bs.send] external login : (t, string) => unit = "";
-  [@bs.send] external onReady : (t, [@bs.as "ready"] _, unit => unit) => unit =
-    "on";
+  [@bs.send]
+  external onReady : (t, [@bs.as "ready"] _, unit => unit) => unit = "on";
   [@bs.send]
   external onMessage : (t, [@bs.as "message"] _, Message.t => unit) => unit =
     "on";

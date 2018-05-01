@@ -12,47 +12,47 @@ type role =
   | Fucker
   | Bot;
 
-let role_of_user (user) =
+let role_of_user = user =>
   if (user |> User.bot) {
-    Bot
+    Bot;
   } else {
     switch (user |> User.username) {
     | "ckknight" => Admin
     | "Blaine66" => Fucker
     | "FalconWiz" => Fucker
     | _ => Normie
-    }
+    };
   };
 
-let handleAdminMessage (msg) = {
+let handleAdminMessage = msg => {
   let author = Message.author(msg);
   switch (msg |> Message.content |> Js.String.toLowerCase) {
   | "ping" =>
     Js.log("channel " ++ Channel.channelType(Message.channel(msg)));
     Js.log("ping! pong. " ++ Snowflake.toString(User.id(author)));
     let _ = msg |> Message.reply("pong");
-    ()
+    ();
   | _ => ()
-  }
+  };
 };
 
-let handleNormieMessage (msg) = {
+let handleNormieMessage = msg => {
   let author = Message.author(msg);
   switch (msg |> Message.content |> Js.String.toLowerCase) {
   | "ping" =>
     Js.log("channel " ++ Channel.channelType(Message.channel(msg)));
     Js.log("ping! pong. " ++ Snowflake.toString(User.id(author)));
     let _ = msg |> Message.reply("pong");
-    ()
+    ();
   | _ => ()
-  }
+  };
 };
 
-let handleFuckerMessage (msg) =
+let handleFuckerMessage = msg =>
   switch (msg |> Message.content |> Js.String.toLowerCase) {
   | "ping" =>
     let _ = msg |> Message.reply("kys, fucker");
-    ()
+    ();
   | _ => ()
   };
 
@@ -67,10 +67,10 @@ type command =
   | Poll
   | PollRange(int, int);
 
-let parseMatch (commandName, args) =
+let parseMatch = (commandName, args) =>
   switch (commandName) {
   | "ping" => Some(Ping)
-  | "roll" => Roller.parseRoll(args) |> Option.map((x) => Roll(x))
+  | "roll" => Roller.parseRoll(args) |> Option.map(x => Roll(x))
   | "help" => Some(Help)
   | "get" => Some(Get)
   | "set" => Some(Set(args))
@@ -78,9 +78,9 @@ let parseMatch (commandName, args) =
   | "giphy" => Some(Giphy(args))
   | "poll" =>
     args
-    |> Js.String.match_(Js.Re.fromString("^(\\d+)(?:-(\\d+))?\\s+"))
+    |> Js.String.match(Js.Re.fromString("^(\\d+)(?:-(\\d+))?\\s+"))
     |> (
-      (match_) =>
+      match_ =>
         switch (match_) {
         | None => Some(Poll)
         | Some(match_) =>
@@ -88,22 +88,22 @@ let parseMatch (commandName, args) =
             Some(
               PollRange(
                 Utils.parseInt(1, match_[1]),
-                Utils.parseInt(10, match_[2])
-              )
-            )
+                Utils.parseInt(10, match_[2]),
+              ),
+            );
           } else {
-            Some(PollRange(1, Utils.parseInt(10, match_[1])))
+            Some(PollRange(1, Utils.parseInt(10, match_[1])));
           }
         }
     )
   | _ => None
   };
 
-let parseContent (prefix, content) =
+let parseContent = (prefix, content) =>
   content
-  |> Js.String.match_(Js.Re.fromString("^" ++ prefix ++ "(\\S+)\\s*(.*)"))
+  |> Js.String.match(Js.Re.fromString("^" ++ prefix ++ "(\\S+)\\s*(.*)"))
   |> (
-    (match_) =>
+    match_ =>
       switch (match_) {
       | None => None
       | Some(match_) =>
@@ -111,14 +111,14 @@ let parseContent (prefix, content) =
       }
   );
 
-let parsePrefixedMessage (prefix, msg) =
+let parsePrefixedMessage = (prefix, msg) =>
   parseContent(prefix, msg |> Message.content |> Js.String.trim);
 
 let parseDirectMessage = parsePrefixedMessage("~?");
 
 let parseChannelMessage = parsePrefixedMessage("~");
 
-let parseMessage (msg) =
+let parseMessage = msg =>
   switch (msg |> Message.author |> role_of_user) {
   | Bot => None
   | _ =>
@@ -131,7 +131,7 @@ let parseMessage (msg) =
 
 let engine = Random.MersenneTwister.(make() |> autoSeed |> engine);
 
-let logMessage (msg) = {
+let logMessage = msg => {
   let author = msg |> Message.author;
   let channel = msg |> Message.channel;
   let channelName =
@@ -147,7 +147,7 @@ let logMessage (msg) = {
   let fullUsername =
     "@" ++ User.username(author) ++ "#" ++ User.discriminator(author);
   let content = msg |> Message.content;
-  Js.log(channelName ++ ": " ++ fullUsername ++ "> " ++ content)
+  Js.log(channelName ++ ": " ++ fullUsername ++ "> " ++ content);
 };
 
 type eightBallMood =
@@ -175,137 +175,135 @@ let eightBallResults = [|
   (Negative, "My reply is no"),
   (Negative, "My sources say no"),
   (Negative, "Outlook not so good"),
-  (Negative, "Very doubtful")
+  (Negative, "Very doubtful"),
 |];
 
-let handleMessage (msg) = {
+let handleMessage = msg => {
   logMessage(msg);
   parseMessage(msg)
-  |> Option.iter(
-       (command) =>
-         switch (command) {
-         | Help =>
-           Js.log("help from " ++ User.username(Message.author(msg)));
-           let _ = msg |> Message.reply("~roll d20 + 4d10 - 2d6 + 3dF + 5");
-           ()
-         | Ping =>
-           Js.log("ping from " ++ User.username(Message.author(msg)));
-           let _ = msg |> Message.reply("pong");
-           ()
-         | Roll(data) =>
-           State.UserState.update(
-             Message.author(msg),
-             (state) => {...state, rolls: state.rolls + 1}
-           );
-           Js.log(
-             "roll from "
-             ++ User.username(Message.author(msg))
-             ++ " "
-             ++ Roller.stringify(data)
-           );
-           let rolls = Roller.roll(data, engine);
-           let _ =
-             msg
-             |> Message.reply(
-                  :split SplitOptions.make(),
-                  Roller.emojify(data, rolls)
-                  ++ " = "
-                  ++ Js.String.make(Roller.calculateTotal(data, rolls))
-                );
-           ()
-         | EightBall =>
-           let (mood, text) =
-             Random.pick(eightBallResults, engine)
-             |> Utils.Option.orRaise(Failure("Expected a result"));
-           let _ =
-             msg
-             |> Message.reply(
-                  text
-                  ++ " "
-                  ++ (
-                    switch (mood) {
-                    | Affirmative => ":+1:"
-                    | Noncommittal => ":shrug:"
-                    | Negative => ":-1:"
-                    }
-                  )
-                );
-           ()
-         | Get =>
-           let state = State.UserState.get(Message.author(msg));
-           let _ = msg |> Message.reply(state.note);
-           ()
-         | Set(note) =>
-           State.UserState.update(
-             Message.author(msg),
-             (state) => {...state, note}
-           );
-           let _ = msg |> Message.reply("note = " ++ note);
-           ()
-         | Giphy(search) =>
-           let client = Giphy.makeClient();
-           let _ =
-             client
-             |> Giphy.random(search)
-             |> Js.Promise.then_((url) => msg |> Message.reply(url));
-           ()
-         | Poll =>
-           let _ =
-             msg
-             |> Message.reactWithString({js|👍|js})
-             |> Js.Promise.then_(
-                  (_) => msg |> Message.reactWithString({js|👎|js})
-                )
-             |> Js.Promise.then_(
-                  (_) => msg |> Message.reactWithString({js|🤷|js})
-                );
-           ()
-         | PollRange(start, finish) =>
-           let isValidRange (x) = x >= 1 && x <= 10;
-           let getEmojiStringForInt (x) =
-             switch (x) {
-             | 1 => {js|1⃣|js}
-             | 2 => {js|2⃣|js}
-             | 3 => {js|3⃣|js}
-             | 4 => {js|4⃣|js}
-             | 5 => {js|5⃣|js}
-             | 6 => {js|6⃣|js}
-             | 7 => {js|7⃣|js}
-             | 8 => {js|8⃣|js}
-             | 9 => {js|9⃣|js}
-             | 10 => {js|🔟|js}
-             | _ => failwith("Unexpected value")
+  |> Option.iter(command =>
+       switch (command) {
+       | Help =>
+         Js.log("help from " ++ User.username(Message.author(msg)));
+         let _ = msg |> Message.reply("~roll d20 + 4d10 - 2d6 + 3dF + 5");
+         ();
+       | Ping =>
+         Js.log("ping from " ++ User.username(Message.author(msg)));
+         let _ = msg |> Message.reply("pong");
+         ();
+       | Roll(data) =>
+         State.UserState.update(Message.author(msg), state =>
+           {...state, rolls: state.rolls + 1}
+         );
+         Js.log(
+           "roll from "
+           ++ User.username(Message.author(msg))
+           ++ " "
+           ++ Roller.stringify(data),
+         );
+         let rolls = Roller.roll(data, engine);
+         let _ =
+           msg
+           |> Message.reply(
+                ~split=SplitOptions.make(),
+                Roller.emojify(data, rolls)
+                ++ " = "
+                ++ Js.String.make(Roller.calculateTotal(data, rolls)),
+              );
+         ();
+       | EightBall =>
+         let (mood, text) =
+           Random.pick(eightBallResults, engine)
+           |> Utils.Option.orRaise(Failure("Expected a result"));
+         let _ =
+           msg
+           |> Message.reply(
+                text
+                ++ " "
+                ++ (
+                  switch (mood) {
+                  | Affirmative => ":+1:"
+                  | Noncommittal => ":shrug:"
+                  | Negative => ":-1:"
+                  }
+                ),
+              );
+         ();
+       | Get =>
+         let state = State.UserState.get(Message.author(msg));
+         let _ = msg |> Message.reply(state.note);
+         ();
+       | Set(note) =>
+         State.UserState.update(Message.author(msg), state =>
+           {...state, note}
+         );
+         let _ = msg |> Message.reply("note = " ++ note);
+         ();
+       | Giphy(search) =>
+         let client = Giphy.makeClient();
+         let _ =
+           client
+           |> Giphy.random(search)
+           |> Js.Promise.then_(url => msg |> Message.reply(url));
+         ();
+       | Poll =>
+         let _ =
+           msg
+           |> Message.reactWithString({js|👍|js})
+           |> Js.Promise.then_((_) =>
+                msg |> Message.reactWithString({js|👎|js})
+              )
+           |> Js.Promise.then_((_) =>
+                msg |> Message.reactWithString({js|🤷|js})
+              );
+         ();
+       | PollRange(start, finish) =>
+         let isValidRange = x => x >= 1 && x <= 10;
+         let getEmojiStringForInt = x =>
+           switch (x) {
+           | 1 => {js|1⃣|js}
+           | 2 => {js|2⃣|js}
+           | 3 => {js|3⃣|js}
+           | 4 => {js|4⃣|js}
+           | 5 => {js|5⃣|js}
+           | 6 => {js|6⃣|js}
+           | 7 => {js|7⃣|js}
+           | 8 => {js|8⃣|js}
+           | 9 => {js|9⃣|js}
+           | 10 => {js|🔟|js}
+           | _ => failwith("Unexpected value")
+           };
+         if (isValidRange(start) && isValidRange(finish) && start <= finish) {
+           let rec run = i =>
+             if (i <= finish) {
+               msg
+               |> Message.reactWithString(getEmojiStringForInt(i))
+               |> Js.Promise.then_((_) => run(i + 1));
+             } else {
+               Js.Promise.resolve();
              };
-           if (isValidRange(start) && isValidRange(finish) && start <= finish) {
-             let rec run (i) =
-               if (i <= finish) {
-                 msg
-                 |> Message.reactWithString(getEmojiStringForInt(i))
-                 |> Js.Promise.then_((_) => run(i + 1))
-               } else {
-                 Js.Promise.resolve()
-               };
-             let _ = run(start);
-             ()
-           }
-         }
-     )
+           let _ = run(start);
+           ();
+         };
+       }
+     );
 };
 
 client
-|> Client.onReady(
-     () => {
-       client
-       |> Client.user
-       |> Option.orRaise(Failure("expected a user"))
-       |> ClientUser.setPresence(:game "~help")
-       |> promiseMap((stuff) => Js.log(stuff))
-       |> promiseEnd;
-       Js.log("Bot is ready!")
-     }
-   );
+|> Client.onReady(() => {
+     client
+     |> Client.user
+     |> Option.orRaise(Failure("expected a user"))
+     |> ClientUser.setPresence(~game="~help")
+     |> promiseMap(stuff => Js.log(stuff))
+     |> promiseEnd;
+     Js.log("Bot is ready!");
+   });
 
 client |> Client.onMessage(handleMessage);
 
-client
-|> Client.login(Node.Fs.readFileAsUtf8Sync("./token.txt") |> Js.String.trim);
+let token = Node.Fs.readFileAsUtf8Sync("./token.txt") |> Js.String.trim;
+
+Js.log(token ++ " oh yeah");
+
+client |> Client.login(token);

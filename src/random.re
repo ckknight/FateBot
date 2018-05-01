@@ -3,25 +3,24 @@ type t;
 [@bs.module "random-js"] [@bs.scope "engines"] external nativeMath : t = "";
 
 [@bs.module "random-js"] [@bs.scope "engines"]
-external browserCrypto : Js.null((unit => t)) =
-  "";
+external browserCrypto : Js.null(unit => t) = "";
 
 module MersenneTwister = {
   type mt;
-  [@bs.module "random-js"] [@bs.scope "engines"] external make : unit => mt =
-    "mt19937";
+  [@bs.module "random-js"] [@bs.scope "engines"]
+  external make : unit => mt = "mt19937";
   external engine : mt => t = "%identity";
-  [@bs.send.pipe : mt] external seed : int => mt = "";
-  [@bs.send.pipe : mt] external seedWithArray : array(int) => mt = "";
+  [@bs.send.pipe: mt] external seed : int => mt = "";
+  [@bs.send.pipe: mt] external seedWithArray : array(int) => mt = "";
   [@bs.send] external autoSeed : mt => mt = "";
-  [@bs.send.pipe : mt] external discard : int => mt = "";
+  [@bs.send.pipe: mt] external discard : int => mt = "";
   [@bs.send] external getUseCount : mt => int = "";
 };
 
-type make('a) = [@bs] (t => 'a);
+type make('a) = (. t) => 'a;
 
-[@bs.module "random-js"] external generateEntropyArray : unit => array(int) =
-  "";
+[@bs.module "random-js"]
+external generateEntropyArray : unit => array(int) = "";
 
 /* [-0x80000000, 0x7fffffff] */
 [@bs.module "random-js"] external int32 : t => int = "";
@@ -42,16 +41,17 @@ type make('a) = [@bs] (t => 'a);
 [@bs.module "random-js"] external int53Full : t => float = "";
 
 /* [min, max] */
-[@bs.module "random-js"] external integer : (float, float) => make(float) = "";
+[@bs.module "random-js"]
+external integer : (float, float) => make(float) = "";
 
-let int (min, max) = {
+let int = (min, max) => {
   let makeFloat = integer(float_of_int(min), float_of_int(max));
-  (t) => int_of_float([@bs] makeFloat(t))
+  t => int_of_float(makeFloat(. t));
 };
 
-let integer (min, max) = {
+let integer = (min, max) => {
   let makeFloat = integer(min, max);
-  (t) => [@bs] makeFloat(t)
+  t => makeFloat(. t);
 };
 
 /* [0, 1] (floating point) */
@@ -66,40 +66,37 @@ let integer (min, max) = {
  * [left, right] (floating-point)
  */
 [@bs.module "random-js"]
-external real : (float, float, Js.boolean) => make(float) =
-  "";
+external real : (float, float, bool) => make(float) = "";
 
-let real (:inclusive=false, min, max) = {
-  let makeFloat = real(min, max, inclusive |> Js.Boolean.to_js_boolean);
-  (t) => [@bs] makeFloat(t)
+let real = (~inclusive=false, min, max) => {
+  let makeFloat = real(min, max, inclusive);
+  t => makeFloat(. t);
 };
 
 /* 50% likelihood of true vs false */
-[@bs.module "random-js"] external bool : unit => make(Js.boolean) = "";
+[@bs.module "random-js"] external bool : unit => make(bool) = "";
 
 let bool = {
   let makeBool = bool();
-  (t) => Js.to_bool([@bs] makeBool(t))
+  t => makeBool(. t);
 };
 
 /* probably * 100% likelihood of true */
 [@bs.module "random-js"]
-external boolByProbability : float => make(Js.boolean) =
-  "bool";
+external boolByProbability : float => make(bool) = "bool";
 
-let boolByProbability (probability) = {
+let boolByProbability = probability => {
   let makeBool = boolByProbability(probability);
-  (t) => Js.to_bool([@bs] makeBool(t))
+  t => makeBool(. t);
 };
 
 /* numerator / denominator * 100% likelihood of true */
 [@bs.module "random-js"]
-external boolByFraction : (float, float) => make(Js.boolean) =
-  "bool";
+external boolByFraction : (float, float) => make(bool) = "bool";
 
-let boolByFraction (numerator, denominator) = {
+let boolByFraction = (numerator, denominator) => {
   let makeBool = boolByFraction(numerator, denominator);
-  (t) => Js.to_bool([@bs] makeBool(t))
+  t => makeBool(. t);
 };
 
 [@bs.module "random-js"]
@@ -107,90 +104,90 @@ external pick :
   (t, array('a), Js.undefined(int), Js.undefined(int)) => Js.undefined('a) =
   "";
 
-let pick (:start=?, :finish=?, array: array('a), engine: t) : option('a) =
+let pick = (~start=?, ~finish=?, array: array('a), engine: t) : option('a) =>
   pick(
     engine,
     array,
-    start |> Js.Undefined.from_opt,
-    finish |> Js.Undefined.from_opt
+    start |> Js.Undefined.fromOption,
+    finish |> Js.Undefined.fromOption,
   )
-  |> Js.Undefined.to_opt;
+  |> Js.Undefined.toOption;
 
 [@bs.module "random-js"]
 external picker :
-  (array('a), Js.undefined(int), Js.undefined(int)) => make(Js.undefined('a)) =
+  (array('a), Js.undefined(int), Js.undefined(int)) =>
+  make(Js.undefined('a)) =
   "";
 
-let picker (:start=?, :finish=?, array) = {
+let picker = (~start=?, ~finish=?, array) => {
   let makePick =
     picker(
       array,
-      start |> Js.Undefined.from_opt,
-      finish |> Js.Undefined.from_opt
+      start |> Js.Undefined.fromOption,
+      finish |> Js.Undefined.fromOption,
     );
-  (t) => [@bs] makePick(t) |> Js.Undefined.to_opt
+  t => makePick(. t) |> Js.Undefined.toOption;
 };
 
-[@bs.module "random-js"] external shuffle : (t, array('a), int) => array('a) =
-  "";
+[@bs.module "random-js"]
+external shuffle : (t, array('a), int) => array('a) = "";
 
-let shuffleInPlace (:downTo=0, array, t) = shuffle(t, array, downTo);
+let shuffleInPlace = (~downTo=0, array, t) => shuffle(t, array, downTo);
 
-let shuffle (:downTo=0, array, t) = shuffle(t, Js.Array.copy(array), downTo);
+let shuffle = (~downTo=0, array, t) =>
+  shuffle(t, Js.Array.copy(array), downTo);
 
-[@bs.module "random-js"] external sample : (t, array('a), int) => array('a) =
-  "";
+[@bs.module "random-js"]
+external sample : (t, array('a), int) => array('a) = "";
 
-let sample (population, sampleSize, t) = sample(t, population, sampleSize);
+let sample = (population, sampleSize, t) =>
+  sample(t, population, sampleSize);
 
 [@bs.module "random-js"] external die : int => make(int) = "";
 
-let die (sideCount) = {
+let die = sideCount => {
   let makeInt = die(sideCount);
-  (t) => [@bs] makeInt(t)
+  t => makeInt(. t);
 };
 
 [@bs.module "random-js"] external dice : (int, int) => make(array(int)) = "";
 
-let dice (sideCount, dieCount) = {
+let dice = (sideCount, dieCount) => {
   let makeIntArray = dice(sideCount, dieCount);
-  (t) => [@bs] makeIntArray(t)
+  t => makeIntArray(. t);
 };
 
 [@bs.module "random-js"] external uuid4 : t => string = "";
 
-type make_string_of_length = [@bs] ((t, int) => string);
+type make_string_of_length = (. t, int) => string;
 
-[@bs.module "random-js"] external string : unit => make_string_of_length =
-  "string";
+[@bs.module "random-js"]
+external string : unit => make_string_of_length = "string";
 
 let string = {
   let makeString = string();
-  (length, t) => [@bs] makeString(t, length)
+  (length, t) => makeString(. t, length);
 };
 
 [@bs.module "random-js"]
-external stringOfPool : string => make_string_of_length =
-  "string";
+external stringOfPool : string => make_string_of_length = "string";
 
-let stringOfPool (pool) = {
+let stringOfPool = pool => {
   let makeString = stringOfPool(pool);
-  (length, t) => [@bs] makeString(t, length)
+  (length, t) => makeString(. t, length);
 };
 
-[@bs.module "random-js"] external hex : Js.boolean => make_string_of_length =
-  "";
+[@bs.module "random-js"] external hex : bool => make_string_of_length = "";
 
-let hex (uppercase) = {
-  let makeString = hex(uppercase |> Js.Boolean.to_js_boolean);
-  (length, t) => [@bs] makeString(t, length)
+let hex = uppercase => {
+  let makeString = hex(uppercase);
+  (length, t) => makeString(. t, length);
 };
 
 [@bs.module "random-js"]
-external date : (Js.Date.t, Js.Date.t) => make(Js.Date.t) =
-  "";
+external date : (Js.Date.t, Js.Date.t) => make(Js.Date.t) = "";
 
-let date (min, max) = {
+let date = (min, max) => {
   let makeDate = date(min, max);
-  (t) => [@bs] makeDate(t)
+  t => makeDate(. t);
 };

@@ -1,23 +1,23 @@
-let getAll () : Js.Dict.t('a) =
+let getAll = () : Js.Dict.t('a) =>
   (
     try (Node.Fs.readFileAsUtf8Sync("./state.json")) {
     | Js.Exn.Error(e) as exn =>
       e
       |> Utils.exnCode
-      |> Utils.Option.filter((code) => code === "ENOENT")
+      |> Utils.Option.filter(code => code === "ENOENT")
       |> Utils.Option.mapTo("")
       |> Utils.Option.orRaise(exn)
     }
   )
   |> (
-    (content) =>
+    content =>
       try (Js.Json.parseExn(content)) {
       | _ => Js.Json.parseExn("{}")
       }
   )
   |> Js.Json.classify
   |> (
-    (json) =>
+    json =>
       switch (json) {
       | Js.Json.JSONObject(dict) => Some(dict)
       | _ => None
@@ -27,20 +27,20 @@ let getAll () : Js.Dict.t('a) =
 
 let getAll = getAll |> Utils.memoize;
 
-let getForSnowflake (snowflake: Discord.snowflake) : option(Js.Json.t) =
+let getForSnowflake = (snowflake: Discord.snowflake) : option(Js.Json.t) =>
   Js.Dict.get(getAll(), Discord.Snowflake.toString(snowflake));
 
 let unsafeDeleteKey: (Js.Dict.t('a), string) => unit = [%bs.raw
   {|function(a,b){return(delete a[b],0)}|}
 ];
 
-let setForSnowflake (snowflake: Discord.snowflake, value: 'a) = {
+let setForSnowflake = (snowflake: Discord.snowflake, value: 'a) => {
   let state = getAll();
   let key = Discord.Snowflake.toString(snowflake);
   value
   |> Js.Json.stringifyAny
   |> (
-    (stringifiedValue) =>
+    stringifiedValue =>
       switch (stringifiedValue) {
       | None => unsafeDeleteKey(state, key)
       | Some(stringifiedValue) =>
@@ -50,10 +50,10 @@ let setForSnowflake (snowflake: Discord.snowflake, value: 'a) = {
   state
   |> Js.Json.object_
   |> Js.Json.stringify
-  |> Node.Fs.writeFileAsUtf8Sync("./state.json")
+  |> Node.Fs.writeFileAsUtf8Sync("./state.json");
 };
 
-module StateAccessor
+module StateAccessor =
        (
          T: {
            type t;
@@ -61,17 +61,18 @@ module StateAccessor
            let encode: state => Js.Json.t;
            let decode: option(Js.Json.t) => state;
            let getSnowflake: t => Discord.Snowflake.t;
-         }
-       ) = {
-  let get (t) = t |> T.getSnowflake |> getForSnowflake |> T.decode;
-  let set (t, state) = setForSnowflake(t |> T.getSnowflake, state |> T.encode);
-  let update (t, updater) = set(t, updater(get(t)));
+         },
+       ) => {
+  let get = t => t |> T.getSnowflake |> getForSnowflake |> T.decode;
+  let set = (t, state) =>
+    setForSnowflake(t |> T.getSnowflake, state |> T.encode);
+  let update = (t, updater) => set(t, updater(get(t)));
 };
 
 module UserState = {
   type t = {
     note: string,
-    rolls: int
+    rolls: int,
   };
   include
     StateAccessor(
@@ -79,19 +80,19 @@ module UserState = {
         type state = t;
         type t = Discord.User.t;
         let getSnowflake = Discord.User.id;
-        let encode (userState) =
+        let encode = userState =>
           [|
             ("note", userState.note |> Js.Json.string),
-            ("rolls", userState.rolls |> float_of_int |> Js.Json.number)
+            ("rolls", userState.rolls |> float_of_int |> Js.Json.number),
           |]
           |> Js.Dict.fromArray
           |> Js.Json.object_;
-        let decode (userState) =
+        let decode = userState =>
           userState
           |> Utils.Option.bind(Js.Json.decodeObject)
           |> Utils.Option.value(Js.Dict.empty())
           |> (
-            (dict) => {
+            dict => {
               note:
                 Js.Dict.get(dict, "note")
                 |> Utils.Option.bind(Js.Json.decodeString)
@@ -100,9 +101,9 @@ module UserState = {
                 Js.Dict.get(dict, "rolls")
                 |> Utils.Option.bind(Js.Json.decodeNumber)
                 |> Utils.Option.value(0.0)
-                |> int_of_float
+                |> int_of_float,
             }
           );
-      }
+      },
     );
 };
