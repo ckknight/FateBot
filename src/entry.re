@@ -299,6 +299,8 @@ let handleMessage = msg => {
      );
 };
 
+client |> Client.onError(exn => Js.log(exn));
+
 client
 |> Client.onReady(() => {
      client
