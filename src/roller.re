@@ -16,62 +16,75 @@ let diceExpMatcher = str =>
          "^([1-9][0-9]*)?(?:d|D)((?:([1-9][0-9]*)(?:\\.\\.([1-9][0-9]*))?)|\\%|f|F)",
        ),
      )
-  |> Option.map(match_ => {
-       let diceCount = parseInt(1, match_[1]);
-       let dice =
-         switch (match_[2] |> Js.String.toLowerCase) {
-         | "%" => Dice(diceCount, 1, 100)
-         | "f" => Dice(diceCount, -1, 1)
-         | _ =>
-           if (truthy(match_[4])) {
-             Dice(
-               diceCount,
-               parseInt(1, match_[3]),
-               parseInt(1, match_[4]),
-             );
-           } else {
-             Dice(diceCount, 1, parseInt(6, match_[3]));
-           }
-         };
-       ([dice], getMatchLength(match_));
-     });
+  |> Belt.Option.map(
+       _,
+       match_ => {
+         let diceCount = parseInt(1, match_[1]);
+         let dice =
+           switch (match_[2] |> Js.String.toLowerCase) {
+           | "%" => Dice(diceCount, 1, 100)
+           | "f" => Dice(diceCount, -1, 1)
+           | _ =>
+             if (truthy(match_[4])) {
+               Dice(
+                 diceCount,
+                 parseInt(1, match_[3]),
+                 parseInt(1, match_[4]),
+               );
+             } else {
+               Dice(diceCount, 1, parseInt(6, match_[3]));
+             }
+           };
+         ([dice], getMatchLength(match_));
+       },
+     );
 
 let constantMatcher = str =>
   str
   |> Js.String.match(Js.Re.fromString("^([1-9][0-9]*)"))
-  |> Option.map(match_ => {
-       let value = parseInt(0, match_[1]);
-       ([Constant(value)], getMatchLength(match_));
-     });
+  |> Belt.Option.map(
+       _,
+       match_ => {
+         let value = parseInt(0, match_[1]);
+         ([Constant(value)], getMatchLength(match_));
+       },
+     );
 
 let spaceMatcher = str =>
   str
   |> Js.String.match(Js.Re.fromString("^\\s*"))
-  |> Option.map(match_ => ([], getMatchLength(match_)));
+  |> Belt.Option.map(_, match_ => ([], getMatchLength(match_)));
 
-let orCombinator = Option.orElse;
+let orCombinator = (f, g, str) =>
+  switch (f(str)) {
+  | None => g(str)
+  | Some(_) as t => t
+  };
 
 let andCombinator = (f, g, str) =>
   f(str)
-  |> Option.bind(((tokens, index)) =>
+  |> Belt.Option.flatMap(_, ((tokens, index)) =>
        g(Js.String.substringToEnd(~from=index, str))
-       |> Option.map(((newTokens, newIndex)) =>
+       |> Belt.Option.map(_, ((newTokens, newIndex)) =>
             (tokens @ newTokens, index + newIndex)
           )
      );
 
 let andMaybeCombinator = (f, g, str) =>
   f(str)
-  |> Option.map(x => {
-       let (tokens, index) = x;
-       switch (g(Js.String.substringToEnd(~from=index, str))) {
-       | None => x
-       | Some((newTokens, newIndex)) => (
-           tokens @ newTokens,
-           index + newIndex,
-         )
-       };
-     });
+  |> Belt.Option.map(
+       _,
+       x => {
+         let (tokens, index) = x;
+         switch (g(Js.String.substringToEnd(~from=index, str))) {
+         | None => x
+         | Some((newTokens, newIndex)) => (
+             tokens @ newTokens,
+             index + newIndex,
+           )
+         };
+       },
+     );
 
 let manyCombinator = f => {
   let rec g = str => andMaybeCombinator(f, g, str);
@@ -99,7 +112,7 @@ let finalCombinator =
 
 let parseRoll = exp =>
   finalCombinator(exp)
-  |> Option.bind(((tokens, index)) =>
+  |> Belt.Option.flatMap(_, ((tokens, index)) =>
        if (index === Js.String.length(exp)) {
          Some(Array.of_list(tokens));
        } else {
@@ -108,7 +121,7 @@ let parseRoll = exp =>
      );
 
 let stringifyRaw = (f, tokens: t) =>
-  tokens |> Js.Array.map(f) |> Js.Array.joinWith(" ");
+  tokens |> Belt.Array.map(_, f) |> Js.Array.joinWith(" ");
 
 let stringify =
   stringifyRaw(token =>
@@ -132,14 +145,11 @@ let stringify =
 
 let roll = (tokens: t, engine: Random.t) =>
   tokens
-  |> Js.Array.map(token =>
+  |> Belt.Array.map(_, token =>
        switch (token) {
        | Dice(count, min, max) =>
-         arrayRange(count)
-         |> Js.Array.map((_) => {
-              Js.log3("Oh shit dawg", min, max);
-              Random.int(min, max, engine);
-            })
+         Belt.Array.range(1, count)
+         |> Belt.Array.map(_, (_) => Random.int(min, max, engine))
        | _ => [||]
        }
      );
@@ -154,15 +164,13 @@ let eval =
       onDice: (int, int, array(int), 's) => 's,
     )
     : 's =>
-  arrayZip(tokens, rolls)
-  |> Js.Array.reduce(
-       (state, (token, rollArray)) =>
-         switch (token) {
-         | Operator(op) => onOperator(op, state)
-         | Constant(value) => onConstant(value, state)
-         | Dice(_, min, max) => onDice(min, max, rollArray, state)
-         },
-       state,
+  Belt.Array.zip(tokens, rolls)
+  |> Belt.Array.reduce(_, state, (state, (token, rollArray)) =>
+       switch (token) {
+       | Operator(op) => onOperator(op, state)
+       | Constant(value) => onConstant(value, state)
+       | Dice(_, min, max) => onDice(min, max, rollArray, state)
+       }
      );
 
 let calculateTotal = (tokens: t, rolls: array(array(int))) : int => {
@@ -174,7 +182,7 @@ let calculateTotal = (tokens: t, rolls: array(array(int))) : int => {
       total - value;
     },
   );
-  let sum = Js.Array.reduce((+), 0);
+  let sum = Belt.Array.reduce(_, 0, (+));
   eval(
     tokens,
     rolls,
@@ -241,7 +249,8 @@ let emojify = (tokens: t, rolls: array(array(int))) : string =>
       acc
       ++ (
         rolls
-        |> Js.Array.map(
+        |> Belt.Array.map(
+             _,
              if (min === (-1) && max === 1) {
                emojifyFateDie;
              } else if (min === 1 && max <= 10) {
@@ -259,7 +268,7 @@ let emojify = (tokens: t, rolls: array(array(int))) : string =>
         |> (
           array => {
             let inner = Js.Array.joinWith(" + ", array);
-            switch (array |> Js.Array.length) {
+            switch (array |> Belt.Array.length) {
             | 1 => inner
             | _ => {j|(|j} ++ inner ++ {j|)|j}
             };

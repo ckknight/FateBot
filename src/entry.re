@@ -71,7 +71,7 @@ type command =
 let parseMatch = (commandName, args) =>
   switch (commandName) {
   | "ping" => Some(Ping)
-  | "roll" => Roller.parseRoll(args) |> Option.map(x => Roll(x))
+  | "roll" => Roller.parseRoll(args) |> Belt.Option.map(_, x => Roll(x))
   | "help" => Some(Help)
   | "get" => Some(Get)
   | "set" => Some(Set(args))
@@ -182,121 +182,119 @@ let eightBallResults = [|
 
 let handleMessage = msg => {
   logMessage(msg);
-  parseMessage(msg)
-  |> Option.iter(command =>
-       switch (command) {
-       | Help =>
-         Js.log("help from " ++ User.username(Message.author(msg)));
-         let _ = msg |> Message.reply("~roll d20 + 4d10 - 2d6 + 3dF + 5");
-         ();
-       | Ping =>
-         Js.log("ping from " ++ User.username(Message.author(msg)));
-         let _ = msg |> Message.reply("pong");
-         ();
-       | Roll(data) =>
-         State.UserState.update(Message.author(msg), state =>
-           {...state, rolls: state.rolls + 1}
-         );
-         Js.log(
-           "roll from "
-           ++ User.username(Message.author(msg))
-           ++ " "
-           ++ Roller.stringify(data),
-         );
-         let rolls = Roller.roll(data, engine);
-         let _ =
-           msg
-           |> Message.reply(
-                ~split=SplitOptions.make(),
-                Roller.emojify(data, rolls)
-                ++ " = "
-                ++ Js.String.make(Roller.calculateTotal(data, rolls)),
-              );
-         ();
-       | EightBall =>
-         let (mood, text) =
-           Random.pick(eightBallResults, engine)
-           |> Utils.Option.orRaise(Failure("Expected a result"));
-         let _ =
-           msg
-           |> Message.reply(
-                text
-                ++ " "
-                ++ (
-                  switch (mood) {
-                  | Affirmative => ":+1:"
-                  | Noncommittal => ":shrug:"
-                  | Negative => ":-1:"
-                  }
-                ),
-              );
-         ();
-       | Get =>
-         let state = State.UserState.get(Message.author(msg));
-         let _ = msg |> Message.reply(state.note);
-         ();
-       | Set(note) =>
-         State.UserState.update(Message.author(msg), state =>
-           {...state, note}
-         );
-         let _ = msg |> Message.reply("note = " ++ note);
-         ();
-       | Giphy(search) =>
-         let client = Giphy.makeClient();
-         let _ =
-           client
-           |> Giphy.random(search)
-           |> Js.Promise.then_(url => msg |> Message.reply(url));
-         ();
-       | Poll =>
-         let _ =
-           msg
-           |> Message.reactWithString({js|👍|js})
-           |> Js.Promise.then_((_) =>
-                msg |> Message.reactWithString({js|👎|js})
-              )
-           |> Js.Promise.then_((_) =>
-                msg |> Message.reactWithString({js|🤷|js})
-              );
-         ();
-       | PollRange(start, finish) =>
-         let isValidRange = x => x >= 1 && x <= 10;
-         let getEmojiStringForInt = x =>
-           switch (x) {
-           | 1 => {js|1⃣|js}
-           | 2 => {js|2⃣|js}
-           | 3 => {js|3⃣|js}
-           | 4 => {js|4⃣|js}
-           | 5 => {js|5⃣|js}
-           | 6 => {js|6⃣|js}
-           | 7 => {js|7⃣|js}
-           | 8 => {js|8⃣|js}
-           | 9 => {js|9⃣|js}
-           | 10 => {js|🔟|js}
-           | _ => failwith("Unexpected value")
-           };
-         if (isValidRange(start) && isValidRange(finish) && start <= finish) {
-           let rec run = i =>
-             if (i <= finish) {
-               msg
-               |> Message.reactWithString(getEmojiStringForInt(i))
-               |> Js.Promise.then_((_) => run(i + 1));
-             } else {
-               Js.Promise.resolve();
-             };
-           let _ = run(start);
-           ();
-         };
-       | Update =>
-         let result =
-           Node.Child_process.execSync(
-             "git pull && yarn install --ignore-scripts",
-             Node.Child_process.option(~encoding="utf8", ()),
+  switch (parseMessage(msg)) {
+  | Some(command) =>
+    switch (command) {
+    | Help =>
+      Js.log("help from " ++ User.username(Message.author(msg)));
+      let _ = msg |> Message.reply("~roll d20 + 4d10 - 2d6 + 3dF + 5");
+      ();
+    | Ping =>
+      Js.log("ping from " ++ User.username(Message.author(msg)));
+      let _ = msg |> Message.reply("pong");
+      ();
+    | Roll(data) =>
+      State.UserState.update(Message.author(msg), state =>
+        {...state, rolls: state.rolls + 1}
+      );
+      Js.log(
+        "roll from "
+        ++ User.username(Message.author(msg))
+        ++ " "
+        ++ Roller.stringify(data),
+      );
+      let rolls = Roller.roll(data, engine);
+      let _ =
+        msg
+        |> Message.reply(
+             ~split=SplitOptions.make(),
+             Roller.emojify(data, rolls)
+             ++ " = "
+             ++ Js.String.make(Roller.calculateTotal(data, rolls)),
            );
-         msg |> Message.reply(result) |> ignore;
-         ();
-       }
-     );
+      ();
+    | EightBall =>
+      let (mood, text) =
+        Random.pick(eightBallResults, engine) |> Belt.Option.getExn;
+      let _ =
+        msg
+        |> Message.reply(
+             text
+             ++ " "
+             ++ (
+               switch (mood) {
+               | Affirmative => ":+1:"
+               | Noncommittal => ":shrug:"
+               | Negative => ":-1:"
+               }
+             ),
+           );
+      ();
+    | Get =>
+      let state = State.UserState.get(Message.author(msg));
+      let _ = msg |> Message.reply(state.note);
+      ();
+    | Set(note) =>
+      State.UserState.update(Message.author(msg), state => {...state, note});
+      let _ = msg |> Message.reply("note = " ++ note);
+      ();
+    | Giphy(search) =>
+      let client = Giphy.makeClient();
+      let _ =
+        client
+        |> Giphy.random(search)
+        |> Js.Promise.then_(url => msg |> Message.reply(url));
+      ();
+    | Poll =>
+      let _ =
+        msg
+        |> Message.reactWithString({js|👍|js})
+        |> Js.Promise.then_((_) =>
+             msg |> Message.reactWithString({js|👎|js})
+           )
+        |> Js.Promise.then_((_) =>
+             msg |> Message.reactWithString({js|🤷|js})
+           );
+      ();
+    | PollRange(start, finish) =>
+      let isValidRange = x => x >= 1 && x <= 10;
+      let getEmojiStringForInt = x =>
+        switch (x) {
+        | 1 => {js|1⃣|js}
+        | 2 => {js|2⃣|js}
+        | 3 => {js|3⃣|js}
+        | 4 => {js|4⃣|js}
+        | 5 => {js|5⃣|js}
+        | 6 => {js|6⃣|js}
+        | 7 => {js|7⃣|js}
+        | 8 => {js|8⃣|js}
+        | 9 => {js|9⃣|js}
+        | 10 => {js|🔟|js}
+        | _ => failwith("Unexpected value")
+        };
+      if (isValidRange(start) && isValidRange(finish) && start <= finish) {
+        let rec run = i =>
+          if (i <= finish) {
+            msg
+            |> Message.reactWithString(getEmojiStringForInt(i))
+            |> Js.Promise.then_((_) => run(i + 1));
+          } else {
+            Js.Promise.resolve();
+          };
+        let _ = run(start);
+        ();
+      };
+    | Update =>
+      let result =
+        Node.Child_process.execSync(
+          "git pull && yarn install --ignore-scripts",
+          Node.Child_process.option(~encoding="utf8", ()),
+        );
+      msg |> Message.reply(result) |> ignore;
+      ();
+    }
+  | _ => ()
+  };
 };
 
 client |> Client.onError(exn => Js.log(exn));
@@ -305,7 +303,7 @@ client
 |> Client.onReady(() => {
      client
      |> Client.user
-     |> Option.orRaise(Failure("expected a user"))
+     |> Belt.Option.getExn
      |> ClientUser.setPresence(~game="~help")
      |> promiseMap(stuff => Js.log(stuff))
      |> promiseEnd;

@@ -2,11 +2,10 @@ let getAll = () : Js.Dict.t('a) =>
   (
     try (Node.Fs.readFileAsUtf8Sync("./state.json")) {
     | Js.Exn.Error(e) as exn =>
-      e
-      |> Utils.exnCode
-      |> Utils.Option.filter(code => code === "ENOENT")
-      |> Utils.Option.mapTo("")
-      |> Utils.Option.orRaise(exn)
+      switch (Utils.exnCode(e)) {
+      | Some(code) when code == "ENOENT" => ""
+      | _ => raise(exn)
+      }
     }
   )
   |> (
@@ -23,7 +22,7 @@ let getAll = () : Js.Dict.t('a) =>
       | _ => None
       }
   )
-  |> Utils.Option.value(Js.Dict.empty());
+  |> Belt.Option.getWithDefault(_, Js.Dict.empty());
 
 let getAll = getAll |> Utils.memoize;
 
@@ -89,18 +88,18 @@ module UserState = {
           |> Js.Json.object_;
         let decode = userState =>
           userState
-          |> Utils.Option.bind(Js.Json.decodeObject)
-          |> Utils.Option.value(Js.Dict.empty())
+          |> Belt.Option.flatMap(_, Js.Json.decodeObject)
+          |> Belt.Option.getWithDefault(_, Js.Dict.empty())
           |> (
             dict => {
               note:
                 Js.Dict.get(dict, "note")
-                |> Utils.Option.bind(Js.Json.decodeString)
-                |> Utils.Option.value(""),
+                |> Belt.Option.flatMap(_, Js.Json.decodeString)
+                |> Belt.Option.getWithDefault(_, ""),
               rolls:
                 Js.Dict.get(dict, "rolls")
-                |> Utils.Option.bind(Js.Json.decodeNumber)
-                |> Utils.Option.value(0.0)
+                |> Belt.Option.flatMap(_, Js.Json.decodeNumber)
+                |> Belt.Option.getWithDefault(_, 0.0)
                 |> int_of_float,
             }
           );

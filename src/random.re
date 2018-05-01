@@ -135,7 +135,7 @@ external shuffle : (t, array('a), int) => array('a) = "";
 let shuffleInPlace = (~downTo=0, array, t) => shuffle(t, array, downTo);
 
 let shuffle = (~downTo=0, array, t) =>
-  shuffle(t, Js.Array.copy(array), downTo);
+  shuffle(t, Belt.Array.copy(array), downTo);
 
 [@bs.module "random-js"]
 external sample : (t, array('a), int) => array('a) = "";

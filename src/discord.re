@@ -504,7 +504,7 @@ module TextBasedChannel = (C: {type t;}) => {
         "code": code |> Js.Undefined.fromOption,
         "split":
           split
-          |> Utils.Option.map(splitOptions =>
+          |> Belt.Option.map(_, splitOptions =>
                {
                  "maxLength": splitOptions.maxLength |> Js.Undefined.fromOption,
                  "char": splitOptions.char,
@@ -627,7 +627,7 @@ module Message = {
         "code": code |> Js.Undefined.fromOption,
         "split":
           split
-          |> Utils.Option.map(splitOptions =>
+          |> Belt.Option.map(_, splitOptions =>
                {
                  "maxLength": splitOptions.maxLength |> Js.Undefined.fromOption,
                  "char": splitOptions.char,
@@ -1202,8 +1202,8 @@ module SplitOptions = {
   type t = splitOptions;
   let make = (~maxLength=?, ~char=?, ~prepend=?, ~append=?, ()) => {
     maxLength,
-    char: char |> Utils.Option.value("\n"),
-    prepend: prepend |> Utils.Option.value(""),
-    append: append |> Utils.Option.value(""),
+    char: char |> Belt.Option.getWithDefault(_, "\n"),
+    prepend: prepend |> Belt.Option.getWithDefault(_, ""),
+    append: append |> Belt.Option.getWithDefault(_, ""),
   };
 };
