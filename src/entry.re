@@ -65,7 +65,8 @@ type command =
   | EightBall
   | Giphy(string)
   | Poll
-  | PollRange(int, int);
+  | PollRange(int, int)
+  | Update;
 
 let parseMatch = (commandName, args) =>
   switch (commandName) {
@@ -96,6 +97,7 @@ let parseMatch = (commandName, args) =>
           }
         }
     )
+  | "update" => Some(Update)
   | _ => None
   };
 
@@ -285,6 +287,14 @@ let handleMessage = msg => {
            let _ = run(start);
            ();
          };
+       | Update =>
+         let result =
+           Node.Child_process.execSync(
+             "git pull && yarn install --ignore-scripts",
+             Node.Child_process.option(~encoding="utf8", ()),
+           );
+         msg |> Message.reply(result) |> ignore;
+         ();
        }
      );
 };
@@ -303,7 +313,5 @@ client
 client |> Client.onMessage(handleMessage);
 
 let token = Node.Fs.readFileAsUtf8Sync("./token.txt") |> Js.String.trim;
-
-Js.log(token ++ " oh yeah");
 
 client |> Client.login(token);
