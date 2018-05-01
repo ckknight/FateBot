@@ -297,7 +297,13 @@ let handleMessage = msg => {
   };
 };
 
-client |> Client.onError(exn => Js.log(exn));
+client
+|> Client.onError(exn =>
+     switch (Utils.exnCode(exn)) {
+     | Some("ECONNRESET") => Js.log("Connection reset")
+     | _ => Js.log(exn)
+     }
+   );
 
 client
 |> Client.onReady(() => {
