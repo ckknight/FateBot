@@ -191,7 +191,7 @@ let handleMessage = msg => {
       ();
     | Ping =>
       Js.log("ping from " ++ User.username(Message.author(msg)));
-      let _ = msg |> Message.reply("pong");
+      let _ = msg |> Message.reply("pong!");
       ();
     | Roll(data) =>
       State.UserState.update(Message.author(msg), state =>
