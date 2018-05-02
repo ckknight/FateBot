@@ -104,7 +104,9 @@ external pick :
   (t, array('a), Js.undefined(int), Js.undefined(int)) => Js.undefined('a) =
   "";
 
-let pick = (~start=?, ~finish=?, array: array('a), engine: t) : option('a) =>
+let pick =
+    (~start=None, ~finish=None, array: array('a), engine: t)
+    : option('a) =>
   pick(
     engine,
     array,
@@ -112,6 +114,12 @@ let pick = (~start=?, ~finish=?, array: array('a), engine: t) : option('a) =>
     finish |> Js.Undefined.fromOption,
   )
   |> Js.Undefined.toOption;
+
+let pickExn = (~start=None, ~finish=None, array, engine) =>
+  switch (pick(~start, ~finish, array, engine)) {
+  | Some(value) => value
+  | None => failwith("pickExn")
+  };
 
 [@bs.module "random-js"]
 external picker :
