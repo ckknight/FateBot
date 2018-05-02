@@ -81,8 +81,17 @@ let parseMessage = Parser.parseMessage;
 module Handler = {
   let engine = Random.MersenneTwister.(make() |> autoSeed |> engine);
   let help = msg => {
-    Js.log("help from " ++ User.username(Message.author(msg)));
-    let _ = msg |> Message.reply("~roll d20 + 4d10 - 2d6 + 3dF + 5");
+    let _ =
+      msg
+      |> Message.reply(
+           [|
+             "~roll d20 + 4d10 - 2d6 + 3dF + 5",
+             "~8ball",
+             "~giphy cats",
+             "~poll [min] [max]",
+           |]
+           |> Js.Array.joinWith("\n"),
+         );
     ();
   };
   let ping = msg => {
