@@ -22,7 +22,7 @@ let role_of_user = user =>
 let parseMessage = msg =>
   switch (msg |> Message.author |> role_of_user) {
   | Bot => None
-  | _ => Command.parseMessage(msg)
+  | _ => Command.parseMessage(client, msg)
   };
 
 let logMessage = msg => {

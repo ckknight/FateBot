@@ -45,25 +45,33 @@ module Parser = {
     | "update" => Some(Update)
     | _ => None
     };
-  let parseContent = (prefix, content) =>
+  let parseContent = (prefix, client, content) =>
     content
-    |> Js.String.match(Js.Re.fromString("^" ++ prefix ++ "(\\S+)\\s*(.*)"))
-    |> (
-      match_ =>
-        switch (match_) {
-        | None => None
-        | Some(match_) =>
-          parseMatch(match_[1] |> Js.String.toLowerCase, match_[2])
-        }
-    );
-  let parsePrefixedMessage = (prefix, msg) =>
-    parseContent(prefix, msg |> Message.content |> Js.String.trim);
+    |> Js.String.match(
+         Js.Re.fromString(
+           "^(?:<@"
+           ++ (
+             Discord.Client.user(client)
+             |> Belt.Option.getExn
+             |> Discord.ClientUser.id
+             |> Discord.Snowflake.toString
+           )
+           ++ ">\\s*|"
+           ++ prefix
+           ++ ")(\\S+)\\s*(.*)",
+         ),
+       )
+    |> Belt.Option.flatMap(_, match_ =>
+         parseMatch(match_[1] |> Js.String.toLowerCase, match_[2])
+       );
+  let parsePrefixedMessage = (prefix, client, msg) =>
+    parseContent(prefix, client, msg |> Message.content |> Js.String.trim);
   let parseDirectMessage = parsePrefixedMessage("~?");
   let parseChannelMessage = parsePrefixedMessage("~");
-  let parseMessage = msg =>
+  let parseMessage = (client, msg) =>
     switch (msg |> Message.channel |> Channel.channelType) {
-    | "dm" => parseDirectMessage(msg)
-    | "text" => parseChannelMessage(msg)
+    | "dm" => parseDirectMessage(client, msg)
+    | "text" => parseChannelMessage(client, msg)
     | _ => None
     };
 };
