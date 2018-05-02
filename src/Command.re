@@ -24,7 +24,7 @@ module Parser = {
     | "giphy" => Some(Giphy(args))
     | "poll" =>
       args
-      |> Js.String.match(Js.Re.fromString("^(\\d+)(?:-(\\d+))?\\s+"))
+      |> Js.String.match(Js.Re.fromString("^(\\d+)(?:-(\\d+))?\\b"))
       |> (
         match_ =>
           switch (match_) {
@@ -88,7 +88,7 @@ module Handler = {
              "~roll d20 + 4d10 - 2d6 + 3dF + 5",
              "~8ball",
              "~giphy cats",
-             "~poll [min] [max]",
+             "~poll [[min-]max] [topic]",
            |]
            |> Js.Array.joinWith("\n"),
          );
