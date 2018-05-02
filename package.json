@@ -17,7 +17,6 @@
     "random-js": "^1.0.8"
   },
   "devDependencies": {
-    "flow-bin": "^0.54.1",
     "nodemon": "^1.12.0"
   }
 }
