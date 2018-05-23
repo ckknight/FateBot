@@ -9,7 +9,8 @@ type t =
   | Poll
   | PollRange(int, int)
   | Update
-  | TakPlay(Tak.action);
+  | TakPlay(Tak.action)
+  | TakShow;
 
 let parseMessage: (Discord.client, Discord.message) => option(t);
 

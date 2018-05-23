@@ -11,7 +11,8 @@ type t =
   | Poll
   | PollRange(int, int)
   | Update
-  | TakPlay(Tak.action);
+  | TakPlay(Tak.action)
+  | TakShow;
 
 module Parser = {
   let parseTakPosition = (columnString, rowString) => {
@@ -81,12 +82,16 @@ module Parser = {
   let parseTak = args =>
     args
     |> Js.String.match(
-         Js.Re.fromStringWithFlags("^(place|move)\\s+(.*)$", ~flags="i"),
+         Js.Re.fromStringWithFlags(
+           "^(place|move|show)\\b\\s*(.*)$",
+           ~flags="i",
+         ),
        )
     |> Belt.Option.flatMapU(_, (. match_) =>
          switch (match_[1]) {
          | "place" => parseTakPlace(match_[2])
          | "move" => parseTakMove(match_[2])
+         | "show" => Some(TakShow)
          | _ => None
          }
        );
@@ -331,6 +336,7 @@ module Handler = {
     | PollRange(start, finish) => pollRange(start, finish, msg)
     | Update => update(msg)
     | TakPlay(action) => playTak(action, msg)
+    | TakShow => ignore(msg |> Message.reply(showTak(takGame^)))
     };
 };
 
