@@ -8,7 +8,8 @@ type t =
   | Giphy(string)
   | Poll
   | PollRange(int, int)
-  | Update;
+  | Update
+  | TakPlay(Tak.action);
 
 let parseMessage: (Discord.client, Discord.message) => option(t);
 

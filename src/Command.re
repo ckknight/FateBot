@@ -10,9 +10,86 @@ type t =
   | Giphy(string)
   | Poll
   | PollRange(int, int)
-  | Update;
+  | Update
+  | TakPlay(Tak.action);
 
 module Parser = {
+  let parseTakPosition = (columnString, rowString) => {
+    let column = Utils.parseInt(0, columnString) - 1;
+    let row =
+      int_of_float(
+        Js.String.charCodeAt(0, Js.String.toUpperCase(rowString))
+        -. Js.String.charCodeAt(0, "A"),
+      );
+    Tak.position(column, row);
+  };
+  let parseTakPlace = args =>
+    args
+    |> Js.String.match(
+         Js.Re.fromStringWithFlags("^(c|f|s)?\\s*(\\d)([A-Z])$", ~flags="i"),
+       )
+    |> Belt.Option.mapU(
+         _,
+         (. match_) => {
+           let stoneType =
+             switch (
+               Utils.truthy(match_[1]) ?
+                 Js.String.toUpperCase(match_[1]) : ""
+             ) {
+             | "C" => Tak.Capstone
+             | "S" => Tak.StandingStone
+             | _ => Tak.FlatStone
+             };
+           let position = parseTakPosition(match_[2], match_[3]);
+           TakPlay(Tak.Place(stoneType, position));
+         },
+       );
+  let parseTakMove = args =>
+    args
+    |> Js.String.match(
+         Js.Re.fromStringWithFlags(
+           "^(\\d)([A-Z]) ([NESW])((?:\\s+\\d+)+)$",
+           ~flags="i",
+         ),
+       )
+    |> Belt.Option.mapU(
+         _,
+         (. match_) => {
+           let position = parseTakPosition(match_[1], match_[2]);
+           let direction =
+             switch (Js.String.toUpperCase(match_[3])) {
+             | "N" => Tak.North
+             | "E" => Tak.East
+             | "S" => Tak.South
+             | "W" => Tak.West
+             | _ => failwith("Unknown direction " ++ match_[3])
+             };
+           let leftStones =
+             Tak.leftStones(
+               Js.String.splitByRe(
+                 Js.Re.fromString("\\s+"),
+                 Js.String.trim(match_[4]),
+               )
+               |> Belt.Array.mapU(_, (. value) => Utils.parseInt(0, value))
+               |> Belt.List.fromArray,
+             );
+           TakPlay(Tak.Move(position, direction, leftStones));
+         },
+       );
+  /* | (stoneType, position)
+     | Move(position, direction, leftStones); */
+  let parseTak = args =>
+    args
+    |> Js.String.match(
+         Js.Re.fromStringWithFlags("^(place|move)\\s+(.*)$", ~flags="i"),
+       )
+    |> Belt.Option.flatMapU(_, (. match_) =>
+         switch (match_[1]) {
+         | "place" => parseTakPlace(match_[2])
+         | "move" => parseTakMove(match_[2])
+         | _ => None
+         }
+       );
   let parseMatch = (commandName, args) =>
     switch (commandName) {
     | "ping" => Some(Ping)
@@ -43,6 +120,7 @@ module Parser = {
           }
       )
     | "update" => Some(Update)
+    | "tak" => parseTak(args)
     | _ => None
     };
   let parseContent = (prefix, client, content) =>
@@ -56,7 +134,7 @@ module Parser = {
              |> Discord.ClientUser.id
              |> Discord.Snowflake.toString
            )
-           ++ ">\\s*|"
+           ++ ">[,:]?\\s*|"
            ++ prefix
            ++ ")(\\S+)\\s*(.*)",
          ),
@@ -189,6 +267,57 @@ module Handler = {
     let _ = msg |> Message.reply(result);
     ();
   };
+  let takGame = ref(Tak.create(5));
+  let showTak = board => {
+    ();
+    let size = Tak.boardSize(board);
+    (
+      switch (Tak.whoseTurn(board)) {
+      | Some(Tak.Black) => "Black's turn"
+      | Some(Tak.White) => "White's turn"
+      | None => "Nobody's turn"
+      }
+    )
+    ++ "\n"
+    ++ (
+      Belt.Array.range(0, size - 1)
+      |> Belt.Array.mapU(_, (. row) =>
+           Belt.Array.range(0, size - 1)
+           |> Belt.Array.mapU(
+                _,
+                (. column) => {
+                  let pieces = Tak.pieces(Tak.position(column, row), board);
+                  switch (pieces) {
+                  | [(color, stoneType), ..._] =>
+                    switch (color, stoneType) {
+                    | (Tak.Black, Tak.Capstone) => {js|🌚|js}
+                    | (Tak.Black, Tak.StandingStone) => {js|●|js}
+                    | (Tak.Black, Tak.FlatStone) => {js|◾|js}
+                    | (Tak.White, Tak.Capstone) => {js|🌝|js}
+                    | (Tak.White, Tak.StandingStone) => {js|○|js}
+                    | (Tak.White, Tak.FlatStone) => {js|◽|js}
+                    }
+                  | [] => {js|🕳️|js}
+                  };
+                },
+              )
+           |> Js.Array.joinWith("")
+         )
+      |> Js.Array.joinWith("\n")
+    );
+  };
+  let playTak = (action, msg) => {
+    switch (Tak.dispatch(action, takGame^)) {
+    | Some(newGame) =>
+      takGame := newGame;
+      let _ = msg |> Message.reply(showTak(takGame^));
+      ();
+    | _ =>
+      let _ = msg |> Message.reply("Invalid action");
+      ();
+    };
+    ();
+  };
   let handleMessage = (msg, command) =>
     switch (command) {
     | Help => help(msg)
@@ -201,6 +330,7 @@ module Handler = {
     | Poll => poll(msg)
     | PollRange(start, finish) => pollRange(start, finish, msg)
     | Update => update(msg)
+    | TakPlay(action) => playTak(action, msg)
     };
 };
 
