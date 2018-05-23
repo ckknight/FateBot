@@ -1,3 +1,5 @@
+open Belt;
+
 type color =
   | White
   | Black;
@@ -29,7 +31,7 @@ type stone = (color, stoneType);
 
 let positionToIndex = (boardSize, (x, y)) => y * boardSize + x;
 
-type pieces = Belt.Map.Int.t(list(stone));
+type pieces = Map.Int.t(list(stone));
 
 type leftStones = list(int);
 
@@ -51,7 +53,7 @@ type board = {
 type t = board;
 
 let getStonesByPosition = (position, board) =>
-  Belt.Map.Int.getWithDefault(
+  Map.Int.getWithDefault(
     board.pieces,
     positionToIndex(board.boardSize, position),
     [],
@@ -64,11 +66,11 @@ let getTopStoneByPosition = (position, board) =>
   };
 
 let addStoneToPosition = (stone, position, board) =>
-  Belt.Map.Int.updateU(
+  Map.Int.updateU(
     board.pieces,
     positionToIndex(board.boardSize, position),
     (. stones) => {
-      let stones = Belt.Option.getWithDefault(stones, []);
+      let stones = Option.getWithDefault(stones, []);
       Some([stone, ...stones]);
     },
   );
@@ -93,7 +95,7 @@ let create = boardSize =>
       whiteCapstonesRemaining: capstonesRemaining,
       blackCapstonesRemaining: capstonesRemaining,
       status: WhiteInitial,
-      pieces: Belt.Map.Int.empty,
+      pieces: Map.Int.empty,
       actions: [],
     }
   | _ => failwith("Unacceptable boardSize " ++ string_of_int(boardSize))
@@ -108,6 +110,13 @@ let canPlace = board =>
   | _ => true
   };
 
+let attemptToPlace = board =>
+  switch (board.status) {
+  | BlackWin => Result.Error("Black has already won")
+  | WhiteWin => Result.Error("White has already won")
+  | _ => Result.Ok()
+  };
+
 let whoseTurn = board =>
   switch (board.status) {
   | BlackInitial
@@ -120,10 +129,24 @@ let whoseTurn = board =>
 let isPositionTaken = (position, board) =>
   ! Js.List.isEmpty(getStonesByPosition(position, board));
 
+let attemptPositionTaken = (position, board) =>
+  if (isPositionTaken(position, board)) {
+    Result.Error("position is already taken");
+  } else {
+    Result.Ok();
+  };
+
 let isPositionWithinBounds = ((x, y), {boardSize}) =>
   x >= 0 && x < boardSize && y >= 0 && y < boardSize;
 
-let range = size => Belt.List.makeByU(size, (. index) => index);
+let attemptPositionWithinBounds = (position, board) =>
+  if (isPositionWithinBounds(position, board)) {
+    Result.Ok();
+  } else {
+    Result.Error("position not within bounds");
+  };
+
+let range = size => List.makeByU(size, (. index) => index);
 
 let applyDirection = ((x, y), direction) =>
   switch (direction) {
@@ -141,7 +164,7 @@ let isRoad = stoneType =>
   };
 
 let hasRoad = (color, initialPosition, isEnd, board) => {
-  let connections = Belt.MutableSet.Int.make();
+  let connections = MutableSet.Int.make();
   let rec aux = position =>
     if (! isPositionWithinBounds(position, board)) {
       false;
@@ -150,7 +173,7 @@ let hasRoad = (color, initialPosition, isEnd, board) => {
       | Some((stoneColor, stoneType))
           when stoneColor == color && isRoad(stoneType) =>
         let added =
-          Belt.MutableSet.Int.addCheck(
+          MutableSet.Int.addCheck(
             connections,
             positionToIndex(board.boardSize, position),
           );
@@ -159,7 +182,7 @@ let hasRoad = (color, initialPosition, isEnd, board) => {
         } else {
           isEnd(position)
           || [North, East, South, West]
-          |> Belt.List.someU(_, (. direction) =>
+          |> List.someU(_, (. direction) =>
                aux(applyDirection(position, direction))
              );
         };
@@ -187,7 +210,7 @@ let hasVerticalRoad = (color, column, board) =>
 
 let calculateRoads = (color, board) =>
   range(board.boardSize)
-  |> Belt.List.someU(_, (. index) =>
+  |> List.someU(_, (. index) =>
        hasHorizontalRoad(color, index, board)
        || hasVerticalRoad(color, index, board)
      );
@@ -195,7 +218,7 @@ let calculateRoads = (color, board) =>
 let checkForWinner = (turnColor, board) => {
   let roads =
     [White, Black]
-    |> Belt.List.keepMapU(_, (. color) =>
+    |> List.keepMapU(_, (. color) =>
          calculateRoads(color, board) ? Some(color) : None
        );
   let roadWinner =
@@ -214,88 +237,106 @@ let checkForWinner = (turnColor, board) => {
 };
 
 let doPlace = (stoneType, position, board) =>
-  if (! canPlace(board)
-      || ! isPositionWithinBounds(position, board)
-      || isPositionTaken(position, board)) {
-    None;
-  } else {
-    let (stoneColor, initial) =
-      switch (board.status) {
-      | BlackInitial => (White, true)
-      | WhiteInitial => (Black, true)
-      | BlackTurn => (Black, false)
-      | WhiteTurn => (White, false)
-      | _ => failwith("Unexpected board.status")
-      };
-    if (initial && stoneType != FlatStone) {
-      None;
-    } else {
-      let {
-        whiteCapstonesRemaining,
-        blackCapstonesRemaining,
-        whitePiecesRemaining,
-        blackPiecesRemaining,
-      } = board;
-      let (
-        whiteCapstonesRemaining,
-        blackCapstonesRemaining,
-        whitePiecesRemaining,
-        blackPiecesRemaining,
-      ) =
-        switch (stoneColor, stoneType) {
-        | (White, Capstone) => (
-            whiteCapstonesRemaining - 1,
-            blackCapstonesRemaining,
-            whitePiecesRemaining,
-            blackPiecesRemaining,
-          )
-        | (Black, Capstone) => (
-            whiteCapstonesRemaining,
-            blackCapstonesRemaining - 1,
-            whitePiecesRemaining,
-            blackPiecesRemaining,
-          )
-        | (White, _) => (
-            whiteCapstonesRemaining,
-            blackCapstonesRemaining,
-            whitePiecesRemaining - 1,
-            blackPiecesRemaining,
-          )
-        | (Black, _) => (
-            whiteCapstonesRemaining,
-            blackCapstonesRemaining,
-            whitePiecesRemaining,
-            blackPiecesRemaining - 1,
-          )
-        };
-      Some(
-        {
-          ...board,
-          whiteCapstonesRemaining,
-          blackCapstonesRemaining,
-          whitePiecesRemaining,
-          blackPiecesRemaining,
-          status:
-            switch (board.status) {
-            | BlackInitial
-            | BlackTurn => WhiteTurn
-            | WhiteInitial => BlackInitial
-            | WhiteTurn => BlackTurn
-            | _ => failwith("Unexpected board.status")
-            },
-          pieces:
-            addStoneToPosition((stoneColor, stoneType), position, board),
-        }
-        |> checkForWinner(whoseTurn(board) |> Belt.Option.getExn),
-      );
-    };
-  };
+  attemptToPlace(board)
+  |> Result.flatMapU(_, (. _) =>
+       attemptPositionWithinBounds(position, board)
+     )
+  |> Result.flatMapU(_, (. _) => attemptPositionTaken(position, board))
+  |> Result.flatMapU(
+       _,
+       (. _) => {
+         let (stoneColor, initial) =
+           switch (board.status) {
+           | BlackInitial => (White, true)
+           | WhiteInitial => (Black, true)
+           | BlackTurn => (Black, false)
+           | WhiteTurn => (White, false)
+           | _ => failwith("Unexpected board.status")
+           };
+         if (initial && stoneType != FlatStone) {
+           Result.Error("a FlatStone must be placed initially");
+         } else {
+           let {
+             whiteCapstonesRemaining,
+             blackCapstonesRemaining,
+             whitePiecesRemaining,
+             blackPiecesRemaining,
+           } = board;
+           let (
+             whiteCapstonesRemaining,
+             blackCapstonesRemaining,
+             whitePiecesRemaining,
+             blackPiecesRemaining,
+           ) =
+             switch (stoneColor, stoneType) {
+             | (White, Capstone) => (
+                 whiteCapstonesRemaining - 1,
+                 blackCapstonesRemaining,
+                 whitePiecesRemaining,
+                 blackPiecesRemaining,
+               )
+             | (Black, Capstone) => (
+                 whiteCapstonesRemaining,
+                 blackCapstonesRemaining - 1,
+                 whitePiecesRemaining,
+                 blackPiecesRemaining,
+               )
+             | (White, _) => (
+                 whiteCapstonesRemaining,
+                 blackCapstonesRemaining,
+                 whitePiecesRemaining - 1,
+                 blackPiecesRemaining,
+               )
+             | (Black, _) => (
+                 whiteCapstonesRemaining,
+                 blackCapstonesRemaining,
+                 whitePiecesRemaining,
+                 blackPiecesRemaining - 1,
+               )
+             };
+           Result.Ok(
+             {
+               ...board,
+               whiteCapstonesRemaining,
+               blackCapstonesRemaining,
+               whitePiecesRemaining,
+               blackPiecesRemaining,
+               status:
+                 switch (board.status) {
+                 | BlackInitial
+                 | BlackTurn => WhiteTurn
+                 | WhiteInitial => BlackInitial
+                 | WhiteTurn => BlackTurn
+                 | _ => failwith("Unexpected board.status")
+                 },
+               pieces:
+                 addStoneToPosition(
+                   (stoneColor, stoneType),
+                   position,
+                   board,
+                 ),
+             }
+             |> checkForWinner(whoseTurn(board) |> Option.getExn),
+           );
+         };
+       },
+     );
 
 let canMove = board =>
   switch (board.status) {
   | BlackTurn
   | WhiteTurn => true
   | _ => false
+  };
+
+let attemptMove = board =>
+  switch (board.status) {
+  | BlackTurn
+  | WhiteTurn => Result.Ok()
+  | WhiteInitial
+  | BlackInitial => Result.Error("cannot move in the initial turns")
+  | WhiteWin
+  | BlackWin => Result.Error("game has already been won")
   };
 
 let leftStones = input => {
@@ -345,8 +386,8 @@ let movePieces = (stones, position, direction, leftStones, board) => {
         if (stopped) {
           None;
         } else {
-          Belt.List.splitAt(stonesInHand, toLeave)
-          |> Belt.Option.flatMapU(_, (. (stonesToLeave, stonesToKeep)) =>
+          List.splitAt(stonesInHand, toLeave)
+          |> Option.flatMapU(_, (. (stonesToLeave, stonesToKeep)) =>
                aux(
                  stonesToKeep,
                  applyDirection(position, direction),
@@ -354,15 +395,15 @@ let movePieces = (stones, position, direction, leftStones, board) => {
                  {
                    ...board,
                    pieces:
-                     Belt.Map.Int.updateU(
+                     Map.Int.updateU(
                        board.pieces,
                        positionToIndex(board.boardSize, position),
                        (. currentStones) =>
                        Some(
-                         Belt.List.reverseConcat(
+                         List.reverseConcat(
                            stonesToLeave,
-                           Belt.List.mapU(
-                             Belt.Option.getWithDefault(currentStones, []),
+                           List.mapU(
+                             Option.getWithDefault(currentStones, []),
                              (. stone) =>
                              switch (stone) {
                              | (color, StandingStone) => (color, FlatStone)
@@ -379,13 +420,13 @@ let movePieces = (stones, position, direction, leftStones, board) => {
       }
     };
   aux(
-    Belt.List.reverse(stones),
+    List.reverse(stones),
     position,
     leftStones,
     {
       ...board,
       pieces:
-        Belt.Map.Int.remove(
+        Map.Int.remove(
           board.pieces,
           positionToIndex(board.boardSize, position),
         ),
@@ -394,32 +435,35 @@ let movePieces = (stones, position, direction, leftStones, board) => {
 };
 
 let doMove = (position, direction, leftStones, board) =>
-  if (! canMove(board)) {
-    None;
-  } else {
-    let stones = getStonesByPosition(position, board);
-    switch (stones, whoseTurn(board)) {
-    | ([(color, _), ..._], Some(playerColor)) when color == playerColor =>
-      switch (movePieces(stones, position, direction, leftStones, board)) {
-      | Some(pieces) =>
-        Some(
-          {
-            ...board,
-            status:
-              switch (board.status) {
-              | BlackTurn => WhiteTurn
-              | WhiteTurn => BlackTurn
-              | _ => failwith("Unexpected board.status")
-              },
-            pieces,
-          }
-          |> checkForWinner(playerColor),
-        )
-      | _ => None
-      }
-    | _ => None
-    };
-  };
+  attemptMove(board)
+  |> Result.flatMapU(
+       _,
+       (. _) => {
+         let stones = getStonesByPosition(position, board);
+         switch (stones, whoseTurn(board)) {
+         | ([(color, _), ..._], Some(playerColor))
+             when color == playerColor =>
+           switch (movePieces(stones, position, direction, leftStones, board)) {
+           | Some(pieces) =>
+             Result.Ok(
+               {
+                 ...board,
+                 status:
+                   switch (board.status) {
+                   | BlackTurn => WhiteTurn
+                   | WhiteTurn => BlackTurn
+                   | _ => failwith("Unexpected board.status")
+                   },
+                 pieces,
+               }
+               |> checkForWinner(playerColor),
+             )
+           | _ => Result.Error("cannot move there")
+           }
+         | _ => Result.Error("Not the correct player")
+         };
+       },
+     );
 
 let pieces = getStonesByPosition;
 
@@ -431,7 +475,7 @@ let dispatch = (action, board) =>
       doMove(position, direction, leftStones, board)
     }
   )
-  |> Belt.Option.mapU(_, (. board) =>
+  |> Result.mapU(_, (. board) =>
        {...board, actions: [action, ...board.actions]}
      );
 
@@ -442,3 +486,14 @@ let place = (stoneType, position, board) =>
 
 let move = (position, direction, leftStones, board) =>
   dispatch(Move(position, direction, leftStones), board);
+
+type thing = {
+  alpha: int,
+  bravo: float,
+  charlie: int,
+  delta: int,
+  echo: int,
+  foxtrot: int,
+};
+
+let x = {alpha: 1, bravo: 2., charlie: 3, delta: 5, echo: 6, foxtrot: 7};

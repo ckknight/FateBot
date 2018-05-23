@@ -313,12 +313,12 @@ module Handler = {
   };
   let playTak = (action, msg) => {
     switch (Tak.dispatch(action, takGame^)) {
-    | Some(newGame) =>
+    | Belt.Result.Ok(newGame) =>
       takGame := newGame;
       let _ = msg |> Message.reply(showTak(takGame^));
       ();
-    | _ =>
-      let _ = msg |> Message.reply("Invalid action");
+    | Belt.Result.Error(reason) =>
+      let _ = msg |> Message.reply(reason);
       ();
     };
     ();
